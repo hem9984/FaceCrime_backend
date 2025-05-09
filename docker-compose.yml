@@ -1,23 +1,29 @@
+
+
 services:
   backend:
-    build: .
-    ports:
-      - "8443:8443"
-    network_mode: "host"
+    container_name: facecrime_backend
+    network_mode: "host"          # your FastAPI binds to 0.0.0.0:8443
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+
+
+    gpus: all
+
+
+
+
+
     environment:
-      - JINA_API_KEY=${JINA_API_KEY}
-      - MANUFACTURER_DB_DB=${MANUFACTURER_DB_DB}
-      - MANUFACTURER_DB_USER=${MANUFACTURER_DB_USER}
-      - MANUFACTURER_DB_PASSWORD=${MANUFACTURER_DB_PASSWORD}
-      - MANUFACTURER_DB_HOST=${MANUFACTURER_DB_HOST}
-      - MANUFACTURER_DB_PORT=${MANUFACTURER_DB_PORT}
+      - HARRISON_DB_DB=${HARRISON_DB_DB}
+      - HARRISON_DB_USER=${HARRISON_DB_USER}
+      - HARRISON_DB_PASSWORD=${HARRISON_DB_PASSWORD}
+      - HARRISON_DB_HOST=${HARRISON_DB_HOST}
+      - HARRISON_DB_PORT=${HARRISON_DB_PORT}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    restart: always
+
+    # no ports: under host mode your service is already on :8443
+

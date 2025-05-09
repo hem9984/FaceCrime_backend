@@ -24,16 +24,12 @@ logging.basicConfig(
 # Create a logger for this module
 logger = logging.getLogger(__name__)
 
-# Check for required environment variables
-if not os.environ.get('JINA_API_KEY'):
-    logger.warning("JINA_API_KEY not found in environment variables. API calls will fail.")
-
 
 # Initialize the FastAPI app
 app = FastAPI(
     title="FaceCrime Backend API",
-    description="API for detecting similar faces using Jina embeddings and MongoDB",
-    version="0.1.0"
+    description="InsightFace for detecting similar faces using local embeddings and vector database",
+    version="1.0.0"
 )
 
 origins = [
@@ -42,8 +38,10 @@ origins = [
     "https://facecrime.info",
     "https://muchnic.tail9dec88.ts.net",
     "http://localhost:3000",
+    "http://localhost:8080",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
+    "https://anthonylamelas.tail9dec88.ts.net",
     # Add any other origins if needed
 ]
 
