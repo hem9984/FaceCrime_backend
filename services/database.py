@@ -96,7 +96,7 @@ def find_similar_image(embedding: list[float], limit: int = 1):
         with get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 sql = f"""
-                SET vector_search_parameters = 'hnsw.ef=300';
+                SET vector_search_parameters = 'hnsw.ef=800';
                 
                 WITH candidates AS (
                   SELECT
