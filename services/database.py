@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import logging
 import psycopg2
@@ -85,80 +86,114 @@ def insert_image_and_metadata(
 
 def find_similar_image(embedding: list[float], limit: int = 1):
     """
-    Returns up to `limit` rows with highest cosine similarity:
-      matchPercent = 1 - (embedding <=> query_vector)
+    Retrieves the top `limit` matches by:
+      1) Approximate HNSW pass: ORDER BY embedding <=> query LIMIT 50
+      2) Exact re-ranking of those 50 by the same distance
+    Returns a list of dicts with matchPercent in [0..1].
     """
+    TOP_K = 50
     try:
         with get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                cur.execute(
-                    f"""
-                    SELECT
-                      row_id,
-                      id,
-                      prefix,
-                      firstname,
-                      middlename,
-                      lastname,
-                      suffix,
-                      gender,
-                      dob,
-                      location_name,
-                      location_type,
-                      streetaddress,
-                      city,
-                      county,
-                      state,
-                      zipcode,
-                      latitude,
-                      longitude,
-                      offenderuri,
-                      imageuri,
-                      absconder,
-                      jurisdictionid,
-                      imagebase64,
-                      (1 - (embedding <=> %s::vector(512))) AS match_percent
-                    FROM facecrime_data
-                    ORDER BY match_percent DESC
-                    LIMIT %s
-                    """,
-                    (embedding, limit)
+                sql = f"""
+                SET vector_search_parameters = 'hnsw.ef=300';
+                
+                WITH candidates AS (
+                  SELECT
+                    row_id,
+                    id,
+                    prefix,
+                    firstname,
+                    middlename,
+                    lastname,
+                    suffix,
+                    gender,
+                    dob,
+                    location_name,
+                    location_type,
+                    streetaddress,
+                    city,
+                    county,
+                    state,
+                    zipcode,
+                    latitude,
+                    longitude,
+                    offenderuri,
+                    imageuri,
+                    absconder,
+                    jurisdictionid,
+                    imagebase64,
+                    embedding <=> %s::vector(512) AS dist
+                  FROM facecrime_data
+                  ORDER BY embedding <=> %s::vector(512)
+                  LIMIT {TOP_K}
                 )
+                SELECT
+                  row_id,
+                  id,
+                  prefix,
+                  firstname,
+                  middlename,
+                  lastname,
+                  suffix,
+                  gender,
+                  dob,
+                  location_name,
+                  location_type,
+                  streetaddress,
+                  city,
+                  county,
+                  state,
+                  zipcode,
+                  latitude,
+                  longitude,
+                  offenderuri,
+                  imageuri,
+                  absconder,
+                  jurisdictionid,
+                  imagebase64,
+                  (1 - dist) AS match_percent
+                FROM candidates
+                ORDER BY dist ASC
+                LIMIT %s;
+                """
+                # pass the query vector three times: two for the WITH, one for final LIMIT
+                cur.execute(sql, (embedding, embedding, limit))
                 rows = cur.fetchall()
 
         results = []
         for row in rows:
             m = float(row["match_percent"])
+            # clamp to [0..1]
             m = max(0.0, min(1.0, m))
             results.append({
-                "row_id":           row["row_id"],
-                "id":               row["id"],
-                "prefix":           row["prefix"],
-                "firstname":        row["firstname"],
-                "middlename":       row["middlename"],
-                "lastname":         row["lastname"],
-                "suffix":           row["suffix"],
-                "gender":           row["gender"],
-                "dob":              row["dob"],
-                "location_name":    row["location_name"],
-                "location_type":    row["location_type"],
-                "streetaddress":    row["streetaddress"],
-                "city":             row["city"],
-                "county":           row["county"],
-                "state":            row["state"],
-                "zipcode":          row["zipcode"],
-                "latitude":         row["latitude"],
-                "longitude":        row["longitude"],
-                "offenderuri":      row["offenderuri"],
-                "imageuri":         row["imageuri"],
-                "absconder":        row["absconder"],
-                "jurisdictionid":   row["jurisdictionid"],
-                "imagebase64":      row["imagebase64"],
-                "matchPercent":     m,
+                "row_id":         row["row_id"],
+                "id":             row["id"],
+                "prefix":         row["prefix"],
+                "firstname":      row["firstname"],
+                "middlename":     row["middlename"],
+                "lastname":       row["lastname"],
+                "suffix":         row["suffix"],
+                "gender":         row["gender"],
+                "dob":            row["dob"],
+                "location_name":  row["location_name"],
+                "location_type":  row["location_type"],
+                "streetaddress":  row["streetaddress"],
+                "city":           row["city"],
+                "county":         row["county"],
+                "state":          row["state"],
+                "zipcode":        row["zipcode"],
+                "latitude":       row["latitude"],
+                "longitude":      row["longitude"],
+                "offenderuri":    row["offenderuri"],
+                "imageuri":       row["imageuri"],
+                "absconder":      row["absconder"],
+                "jurisdictionid": row["jurisdictionid"],
+                "imagebase64":    row["imagebase64"],
+                "matchPercent":   m,
             })
         return results
 
     except Exception as e:
         logger.error(f"Similarity query failed: {e}")
         return []
-
